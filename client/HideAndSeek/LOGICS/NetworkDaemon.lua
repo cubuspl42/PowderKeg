@@ -75,7 +75,7 @@ end
 local keyPressedLast = 0
 
 local function KeyPressedStable(key)
-	if (GetTime() - keyPressedLast) < 100 then
+	if (GetTime() - keyPressedLast) < 300 then
 		return false
 	end
 	local isPressed = KeyPressed(key)

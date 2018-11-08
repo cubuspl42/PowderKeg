@@ -20,7 +20,7 @@ local VK_NUMPAD8 = 0x68
 local VK_NUMPAD9 = 0x69
 
 local config = {
-	nick = "Player" .. GetTime()
+	nick = "Player" .. socket.gettime()
 }
 
 local imageSets = {
@@ -43,7 +43,7 @@ local zValues = {
 }
 local zValueIndex = 1
 
-local host = "localhost"
+local host = "195.62.13.198"
 local port = 9999
 
 local log = io.open("log.txt", "w")

@@ -37,14 +37,15 @@ local imageOffsetY = 0
 local imageOffsetMax = 64
 
 local zValues = {
-	1000,
-	4000,
-	5000
+	500,
+	2000,
+	4500,
+	6000
 }
 local zValueIndex = 1
 
--- local host = "195.62.13.198"
-local host = "localhost"
+-- local host = "localhost"
+local host = "195.62.13.198"
 local port = 9999
 
 local log = io.open("log.txt", "w")
@@ -120,25 +121,33 @@ local function sendMessage(socket, message)
 	return sendData(socket, data)
 end
 
-local function createAvatar(nick)
+local function createAvatar(nick, z)
 	log:write("Creating avatar: ", nick, "\n")
-	return CreateObject {logic="DoNothing"}
+	return CreateObject {z=z, logic="DoNothing"}
 end
 
 local function handleServerUpdate(message)
 	for nick, clientState in pairs(message.clients) do
-		local avatar = avatars[nick] or createAvatar(nick)
+		local avatar = avatars[nick]
+		if avatar == nil or avatar.Z ~= clientState.z then
+			if avatar ~= nil then avatar:Destroy() end
+			avatar = createAvatar(nick, clientState.z)
+		end
 
-		-- avatar:SetAnimation("")
 		local oldImageSet = GetImgStr(avatar.Image)
 		if oldImageSet ~= clientState.imageSet then
 			avatar:SetImage(clientState.imageSet or "")
 		end
 		avatar.X = clientState.x
 		avatar.Y = clientState.y
-		avatar.Z = clientState.z
 
 		avatars[nick] = avatar
+	end
+	for nick, avatar in pairs(avatars) do
+		if message.clients[nick] == nil then
+			avatars[nick] = nil
+			avatar:Destroy()
+		end
 	end
 	-- TODO: Remove avatars
 end
@@ -183,6 +192,11 @@ socket:settimeout(0)
 local downloadCo = coroutine.create(function() downloadCoroutine(socket) end)
 local uploadCo = coroutine.create(function() uploadCoroutine(socket) end)
 
+local function handleCoroutineError(res, err)
+	if err ~= nil then log:write("res, err ", err, "\n") end
+	error(err)	
+end
+
 function main(self)
 	local claw = GetClaw()
 	self.X, self.Y = claw.X, claw.Y
@@ -192,10 +206,10 @@ function main(self)
 		self.Flags.flags = OR(self.Flags.flags, 2)
 	end
 
-	local res, err = coroutine.resume(downloadCo)
-	if err ~= nil then log:write("res, err", res, err, "\n") end
-	local res, err = coroutine.resume(uploadCo)
-	if err ~= nil then log:write("res, err", res, err, "\n") end
+	local res0, err = coroutine.resume(downloadCo)
+	local res1, err = coroutine.resume(uploadCo)
+	if err ~= nil then log:write("res, err", err, "\n") end
+
 
 	if KeyPressedStable(VK_NUMPAD0) then
 		imageSetIndex = imageSetIndex + 1

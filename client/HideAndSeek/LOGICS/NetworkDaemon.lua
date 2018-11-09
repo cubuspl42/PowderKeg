@@ -43,7 +43,8 @@ local zValues = {
 }
 local zValueIndex = 1
 
-local host = "195.62.13.198"
+-- local host = "195.62.13.198"
+local host = "localhost"
 local port = 9999
 
 local log = io.open("log.txt", "w")

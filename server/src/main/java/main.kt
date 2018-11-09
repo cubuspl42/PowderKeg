@@ -7,6 +7,7 @@ import java.io.InputStreamReader
 import java.lang.Thread.sleep
 import java.net.ServerSocket
 import java.net.Socket
+import java.net.SocketAddress
 import kotlin.concurrent.thread
 
 val mapper = jacksonObjectMapper()
@@ -28,36 +29,54 @@ data class ServerUpdateMessage(
 )
 
 class Server {
-    private val clients = mutableMapOf<String, ClientState>()
+    private val clients = mutableMapOf<SocketAddress, ClientState>()
 
     @Synchronized
-    fun handleClientUpdate(message: ClientUpdateMessage) {
-        clients[message.nick] = message.state
+    fun handleClientUpdate(address: SocketAddress, message: ClientUpdateMessage) {
+        clients[address] = message.state
     }
 
     @Synchronized
     fun buildServerUpdateMessage() =
-            ServerUpdateMessage(clients.toMap())
+            ServerUpdateMessage(clients.mapKeys {
+                it.key.hashCode().toString()
+            })
+
+    @Synchronized
+    fun removeClient(address: SocketAddress) {
+        clients.remove(address)
+    }
 }
 
 val server = Server()
 
 fun clientReadThread(client: Socket) {
-    BufferedReader(InputStreamReader(client.getInputStream())).useLines {
-        it.forEach { line ->
-            val message = mapper.readValue<ClientUpdateMessage>(line)
-            server.handleClientUpdate(message)
+    val address = client.remoteSocketAddress
+    try {
+        BufferedReader(InputStreamReader(client.getInputStream())).useLines {
+            it.forEach { line ->
+                val message = mapper.readValue<ClientUpdateMessage>(line)
+                server.handleClientUpdate(address, message)
+            }
         }
+    } catch (exception: Exception) {
+        println("Exception in read thread ($address): $exception")
     }
 }
 
 fun clientWriteThread(client: Socket) {
-    while (true) {
-        val message = server.buildServerUpdateMessage()
-        val messageString = mapper.writeValueAsString(message) + "\n"
-        client.getOutputStream().write(messageString.toByteArray())
-        println("Writing to client: $message")
-        sleep(16)
+    val address = client.remoteSocketAddress
+    try {
+        while (true) {
+            val message = server.buildServerUpdateMessage()
+            val messageString = mapper.writeValueAsString(message) + "\n"
+            client.getOutputStream().write(messageString.toByteArray())
+//            println("Writing to client: $message")
+            sleep(16)
+        }
+    } catch (exception: Exception) {
+        println("Exception in write thread ($address): $exception")
+        server.removeClient(address)
     }
 }
 
@@ -66,7 +85,7 @@ fun main(args: Array<String>) {
         println("Server running on port ${server.localPort}")
         while (true) {
             server.accept().let { client ->
-                println("Client connected : ${client.inetAddress.hostAddress}")
+                println("Client connected : ${client.remoteSocketAddress}")
                 thread { clientReadThread(client) }
                 thread { clientWriteThread(client) }
                 Unit
